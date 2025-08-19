@@ -30,6 +30,7 @@ class InteractiveViewerPlus extends StatefulWidget {
     this.onInteractionUpdate,
     this.panEnabled = true,
     this.scaleEnabled = true,
+    this.rotateEnabled = true,
     this.scaleFactor = kDefaultMouseScrollToScaleFactor,
     this.controller,
     this.alignment,
@@ -66,6 +67,7 @@ class InteractiveViewerPlus extends StatefulWidget {
     this.onInteractionUpdate,
     this.panEnabled = true,
     this.scaleEnabled = true,
+    this.rotateEnabled = true,
     this.scaleFactor = 200.0,
     this.controller,
     this.alignment,
@@ -107,6 +109,8 @@ class InteractiveViewerPlus extends StatefulWidget {
 
   final bool scaleEnabled;
 
+  final bool rotateEnabled;
+
   final bool trackpadScrollCausesScale;
 
   final double scaleFactor;
@@ -147,10 +151,8 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
   Offset? _referenceFocalPoint;
   double? _scaleStart;
   double? _rotationStart = 0.0;
-  double _currentRotation = 0.0;
-  GestureType? _gestureType;
 
-  final bool _rotateEnabled = false;
+  GestureType? _gestureType;
 
   Rect get _boundaryRect {
     assert(_childKey.currentContext != null);
@@ -188,20 +190,9 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     return Offset.zero & parentRenderBox.size;
   }
 
-  Matrix4 _matrixRotate(Matrix4 matrix, double rotation, Offset focalPoint) {
-    if (rotation == 0) {
-      return matrix.clone();
-    }
-    final Offset focalPointScene = _controller.toScene(focalPoint);
-    return matrix.clone()
-      ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
-      ..rotateZ(-rotation)
-      ..translateByDouble(-focalPointScene.dx, -focalPointScene.dy, 0, 1);
-  }
-
   bool _gestureIsSupported(GestureType? gestureType) {
     return switch (gestureType) {
-      GestureType.rotate => _rotateEnabled,
+      GestureType.rotate => widget.rotateEnabled,
       GestureType.scale => widget.scaleEnabled,
       GestureType.pan || null => widget.panEnabled,
     };
@@ -209,7 +200,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
   GestureType _getGestureType(ScaleUpdateDetails details) {
     final double scale = !widget.scaleEnabled ? 1.0 : details.scale;
-    final double rotation = !_rotateEnabled ? 0.0 : details.rotation;
+    final double rotation = !widget.rotateEnabled ? 0.0 : details.rotation;
     if ((scale - 1).abs() > rotation.abs()) {
       return GestureType.scale;
     } else if (rotation != 0.0) {
@@ -239,7 +230,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     _currentAxis = null;
     _scaleStart = _controller.value.getMaxScaleOnAxis();
     _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
-    _rotationStart = _currentRotation;
+    _rotationStart = _controller.currentRotation;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -289,12 +280,12 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
           return;
         }
         final double desiredRotation = _rotationStart! + details.rotation;
-        _controller.value = _matrixRotate(
+        _controller.value = _controller.matrixRotate(
           _controller.value,
-          _currentRotation - desiredRotation,
+          _controller.currentRotation - desiredRotation,
           details.localFocalPoint,
         );
-        _currentRotation = desiredRotation;
+        _controller.currentRotation = desiredRotation;
 
       case GestureType.pan:
         assert(_referenceFocalPoint != null);
@@ -567,7 +558,6 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
         maxScale: widget.maxScale,
         currentAxis: _currentAxis,
         boundaryRect: _boundaryRect,
-        currentRotation: _currentRotation,
       );
     });
   }
@@ -593,7 +583,6 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
       maxScale: widget.maxScale,
       currentAxis: _currentAxis,
       boundaryRect: _boundaryRect,
-      currentRotation: _currentRotation,
     );
   }
 

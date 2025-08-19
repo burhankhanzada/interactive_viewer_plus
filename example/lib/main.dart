@@ -28,34 +28,41 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
-          const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
-          const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
-          const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
-          const SingleActivator(LogicalKeyboardKey.arrowRight): panRight,
-        },
-        child: Focus(
-          autofocus: true,
-          child: Stack(
-            children: [
-              InteractiveViewerPlus(
-                controller: controller,
-                child: FlutterLogo(size: 1000),
-              ),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(onPressed: zoomIn, icon: Icon(Icons.zoom_in)),
-                    IconButton(onPressed: zoomOut, icon: Icon(Icons.zoom_out)),
-                  ],
+      body: SafeArea(
+        child: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
+            const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
+            const SingleActivator(LogicalKeyboardKey.comma): rotateLeft,
+            const SingleActivator(LogicalKeyboardKey.period): rotateRight,
+            const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
+            const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
+            const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
+            const SingleActivator(LogicalKeyboardKey.arrowRight): panRight,
+          },
+          child: Focus(
+            autofocus: true,
+            child: Stack(
+              children: [
+                InteractiveViewerPlus(
+                  controller: controller,
+                  child: FlutterLogo(size: 1000),
                 ),
-              ),
-            ],
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(onPressed: zoomIn, icon: Icon(Icons.zoom_in)),
+                      IconButton(
+                        onPressed: zoomOut,
+                        icon: Icon(Icons.zoom_out),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -64,6 +71,9 @@ class _HomePageState extends State<HomePage> {
 
   void zoomIn() => controller.zoom(1.1);
   void zoomOut() => controller.zoom(0.9);
+
+  void rotateLeft() => controller.rotate(0.1);
+  void rotateRight() => controller.rotate(-0.1);
 
   void panUp() => controller.pan(const Offset(0, 10));
   void panDown() => controller.pan(const Offset(0, -10));

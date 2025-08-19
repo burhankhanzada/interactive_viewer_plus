@@ -10,9 +10,10 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
   InteractiveViewerPlusController([Matrix4? value])
     : super(value ?? Matrix4.identity());
 
+  double currentRotation = 0.0;
+
   late double minScale;
   late double maxScale;
-  late double currentRotation;
 
   Axis? currentAxis;
   late PanAxis panAxis;
@@ -27,7 +28,6 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     required PanAxis panAxis,
     required Rect boundaryRect,
     required Axis? currentAxis,
-    required double currentRotation,
   }) {
     this.panAxis = panAxis;
     this.viewport = viewport;
@@ -35,7 +35,6 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     this.maxScale = maxScale;
     this.currentAxis = currentAxis;
     this.boundaryRect = boundaryRect;
-    this.currentRotation = currentRotation;
   }
 
   void pan(Offset offset) {
@@ -46,12 +45,29 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     value = matrixScale(value, scale);
   }
 
+  void rotate(double rotation) {
+    final Offset focalPointScene = toScene(viewport.center);
+    value = matrixRotate(value, rotation, focalPointScene);
+    currentRotation = rotation;
+  }
+
   Offset toScene(Offset viewportPoint) {
     final Matrix4 inverseMatrix = Matrix4.inverted(value);
     final Vector3 untransformed = inverseMatrix.transform3(
       Vector3(viewportPoint.dx, viewportPoint.dy, 0),
     );
     return Offset(untransformed.x, untransformed.y);
+  }
+
+  Matrix4 matrixRotate(Matrix4 matrix, double rotation, Offset focalPoint) {
+    if (rotation == 0) {
+      return matrix.clone();
+    }
+    final Offset focalPointScene = toScene(focalPoint);
+    return matrix.clone()
+      ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
+      ..rotateZ(-rotation)
+      ..translateByDouble(-focalPointScene.dx, -focalPointScene.dy, 0, 1);
   }
 
   Matrix4 matrixScale(Matrix4 matrix, double scale) {
