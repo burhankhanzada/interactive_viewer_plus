@@ -1,0 +1,15 @@
+name: example
+publish_to: "none"
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  interactive_viewer_plus:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^5.0.0

@@ -1,0 +1,17 @@
+name: interactive_viewer_plus
+description: "Improvements on default Flutter InteractiveViewer widget"
+version: 0.0.1
+homepage: https://github.com/burhankhanzada/interactive_viewer_plus
+
+environment:
+  sdk: ^3.9.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
