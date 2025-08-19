@@ -3,11 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show clampDouble;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/physics.dart';
-import 'package:flutter/widgets.dart' hide PanAxis;
+import 'package:flutter/widgets.dart';
+import 'package:interactive_viewer_plus/src/controller.dart';
 import 'package:vector_math/vector_math_64.dart' show Quad, Vector3;
 
-import 'package:interactive_viewer_plus/src/enums.dart';
 import 'package:interactive_viewer_plus/src/helper_methods.dart';
+
+enum GestureType { pan, scale, rotate }
 
 typedef InteractiveViewerWidgetBuilder =
     Widget Function(BuildContext context, Quad viewport);
@@ -30,7 +32,7 @@ class InteractiveViewerPlus extends StatefulWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.scaleFactor = kDefaultMouseScrollToScaleFactor,
-    this.transformationController,
+    this.controller,
     this.alignment,
     this.trackpadScrollCausesScale = false,
     required Widget this.child,
@@ -66,7 +68,7 @@ class InteractiveViewerPlus extends StatefulWidget {
     this.panEnabled = true,
     this.scaleEnabled = true,
     this.scaleFactor = 200.0,
-    this.transformationController,
+    this.controller,
     this.alignment,
     this.trackpadScrollCausesScale = false,
     required InteractiveViewerWidgetBuilder this.builder,
@@ -122,7 +124,7 @@ class InteractiveViewerPlus extends StatefulWidget {
 
   final GestureScaleUpdateCallback? onInteractionUpdate;
 
-  final TransformationController? transformationController;
+  final InteractiveViewerPlusController? controller;
 
   static const double _kDrag = 0.0000135;
 
@@ -132,15 +134,15 @@ class InteractiveViewerPlus extends StatefulWidget {
 
 class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     with TickerProviderStateMixin {
-  late TransformationController _transformer =
-      widget.transformationController ?? TransformationController();
+  late InteractiveViewerPlusController _controller =
+      widget.controller ?? InteractiveViewerPlusController();
 
   final GlobalKey _childKey = GlobalKey();
   final GlobalKey _parentKey = GlobalKey();
   Animation<Offset>? _animation;
   Animation<double>? _scaleAnimation;
   late Offset _scaleAnimationFocalPoint;
-  late AnimationController _controller;
+  late AnimationController _animationController;
   late AnimationController _scaleController;
   Axis? _currentAxis;
   Offset? _referenceFocalPoint;
@@ -187,99 +189,13 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     return Offset.zero & parentRenderBox.size;
   }
 
-  Matrix4 _matrixTranslate(Matrix4 matrix, Offset translation) {
-    if (translation == Offset.zero) {
-      return matrix.clone();
-    }
-
-    final Offset alignedTranslation;
-
-    if (_currentAxis != null) {
-      alignedTranslation = switch (widget.panAxis) {
-        PanAxis.horizontal => alignAxis(translation, Axis.horizontal),
-        PanAxis.vertical => alignAxis(translation, Axis.vertical),
-        PanAxis.aligned => alignAxis(translation, _currentAxis!),
-        PanAxis.free => translation,
-      };
-    } else {
-      alignedTranslation = translation;
-    }
-
-    final Matrix4 nextMatrix = matrix.clone()
-      ..translateByDouble(alignedTranslation.dx, alignedTranslation.dy, 0, 1);
-
-    final Quad nextViewport = transformViewport(nextMatrix, _viewport);
-
-    if (_boundaryRect.isInfinite) {
-      return nextMatrix;
-    }
-
-    final Quad boundariesAabbQuad = getAxisAlignedBoundingBoxWithRotation(
-      _boundaryRect,
-      _currentRotation,
-    );
-
-    final Offset offendingDistance = exceedsBy(
-      boundariesAabbQuad,
-      nextViewport,
-    );
-    if (offendingDistance == Offset.zero) {
-      return nextMatrix;
-    }
-
-    final Offset nextTotalTranslation = getMatrixTranslation(nextMatrix);
-    final double currentScale = matrix.getMaxScaleOnAxis();
-    final Offset correctedTotalTranslation = Offset(
-      nextTotalTranslation.dx - offendingDistance.dx * currentScale,
-      nextTotalTranslation.dy - offendingDistance.dy * currentScale,
-    );
-
-    final Matrix4 correctedMatrix = matrix.clone()
-      ..setTranslation(
-        Vector3(
-          correctedTotalTranslation.dx,
-          correctedTotalTranslation.dy,
-          0.0,
-        ),
-      );
-
-    final Quad correctedViewport = transformViewport(
-      correctedMatrix,
-      _viewport,
-    );
-    final Offset offendingCorrectedDistance = exceedsBy(
-      boundariesAabbQuad,
-      correctedViewport,
-    );
-    if (offendingCorrectedDistance == Offset.zero) {
-      return correctedMatrix;
-    }
-
-    if (offendingCorrectedDistance.dx != 0.0 &&
-        offendingCorrectedDistance.dy != 0.0) {
-      return matrix.clone();
-    }
-
-    final Offset unidirectionalCorrectedTotalTranslation = Offset(
-      offendingCorrectedDistance.dx == 0.0 ? correctedTotalTranslation.dx : 0.0,
-      offendingCorrectedDistance.dy == 0.0 ? correctedTotalTranslation.dy : 0.0,
-    );
-    return matrix.clone()..setTranslation(
-      Vector3(
-        unidirectionalCorrectedTotalTranslation.dx,
-        unidirectionalCorrectedTotalTranslation.dy,
-        0.0,
-      ),
-    );
-  }
-
   Matrix4 _matrixScale(Matrix4 matrix, double scale) {
     if (scale == 1.0) {
       return matrix.clone();
     }
     assert(scale != 0.0);
 
-    final double currentScale = _transformer.value.getMaxScaleOnAxis();
+    final double currentScale = _controller.value.getMaxScaleOnAxis();
     final double totalScale = math.max(
       currentScale * scale,
 
@@ -302,7 +218,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     if (rotation == 0) {
       return matrix.clone();
     }
-    final Offset focalPointScene = _transformer.toScene(focalPoint);
+    final Offset focalPointScene = _controller.toScene(focalPoint);
     return matrix.clone()
       ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
       ..rotateZ(-rotation)
@@ -332,9 +248,9 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
   void _onScaleStart(ScaleStartDetails details) {
     widget.onInteractionStart?.call(details);
 
-    if (_controller.isAnimating) {
-      _controller.stop();
-      _controller.reset();
+    if (_animationController.isAnimating) {
+      _animationController.stop();
+      _animationController.reset();
       _animation?.removeListener(_handleInertiaAnimation);
       _animation = null;
     }
@@ -347,17 +263,15 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
     _gestureType = null;
     _currentAxis = null;
-    _scaleStart = _transformer.value.getMaxScaleOnAxis();
-    _referenceFocalPoint = _transformer.toScene(details.localFocalPoint);
+    _scaleStart = _controller.value.getMaxScaleOnAxis();
+    _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
     _rotationStart = _currentRotation;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    final double scale = _transformer.value.getMaxScaleOnAxis();
+    final double scale = _controller.value.getMaxScaleOnAxis();
     _scaleAnimationFocalPoint = details.localFocalPoint;
-    final Offset focalPointScene = _transformer.toScene(
-      details.localFocalPoint,
-    );
+    final Offset focalPointScene = _controller.toScene(details.localFocalPoint);
 
     if (_gestureType == GestureType.pan) {
       _gestureType = _getGestureType(details);
@@ -375,17 +289,17 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
         final double desiredScale = _scaleStart! * details.scale;
         final double scaleChange = desiredScale / scale;
-        _transformer.value = _matrixScale(_transformer.value, scaleChange);
+        _controller.value = _matrixScale(_controller.value, scaleChange);
 
-        final Offset focalPointSceneScaled = _transformer.toScene(
+        final Offset focalPointSceneScaled = _controller.toScene(
           details.localFocalPoint,
         );
-        _transformer.value = _matrixTranslate(
-          _transformer.value,
+        _controller.value = _controller.matrixTranslate(
+          _controller.value,
           focalPointSceneScaled - _referenceFocalPoint!,
         );
 
-        final Offset focalPointSceneCheck = _transformer.toScene(
+        final Offset focalPointSceneCheck = _controller.toScene(
           details.localFocalPoint,
         );
         if (round(_referenceFocalPoint!) != round(focalPointSceneCheck)) {
@@ -398,8 +312,8 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
           return;
         }
         final double desiredRotation = _rotationStart! + details.rotation;
-        _transformer.value = _matrixRotate(
-          _transformer.value,
+        _controller.value = _matrixRotate(
+          _controller.value,
           _currentRotation - desiredRotation,
           details.localFocalPoint,
         );
@@ -416,11 +330,11 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
         final Offset translationChange =
             focalPointScene - _referenceFocalPoint!;
-        _transformer.value = _matrixTranslate(
-          _transformer.value,
+        _controller.value = _controller.matrixTranslate(
+          _controller.value,
           translationChange,
         );
-        _referenceFocalPoint = _transformer.toScene(details.localFocalPoint);
+        _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
     }
     widget.onInteractionUpdate?.call(details);
   }
@@ -433,7 +347,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
     _animation?.removeListener(_handleInertiaAnimation);
     _scaleAnimation?.removeListener(_handleScaleAnimation);
-    _controller.reset();
+    _animationController.reset();
     _scaleController.reset();
 
     if (!_gestureIsSupported(_gestureType)) {
@@ -447,7 +361,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
           _currentAxis = null;
           return;
         }
-        final Vector3 translationVector = _transformer.value.getTranslation();
+        final Vector3 translationVector = _controller.value.getTranslation();
         final Offset translation = Offset(
           translationVector.x,
           translationVector.y,
@@ -474,17 +388,22 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
                 frictionSimulationY.finalX,
               ),
             ).animate(
-              CurvedAnimation(parent: _controller, curve: Curves.decelerate),
+              CurvedAnimation(
+                parent: _animationController,
+                curve: Curves.decelerate,
+              ),
             );
-        _controller.duration = Duration(milliseconds: (tFinal * 1000).round());
+        _animationController.duration = Duration(
+          milliseconds: (tFinal * 1000).round(),
+        );
         _animation!.addListener(_handleInertiaAnimation);
-        _controller.forward();
+        _animationController.forward();
       case GestureType.scale:
         if (details.scaleVelocity.abs() < 0.1) {
           _currentAxis = null;
           return;
         }
-        final double scale = _transformer.value.getMaxScaleOnAxis();
+        final double scale = _controller.value.getMaxScaleOnAxis();
         final FrictionSimulation frictionSimulation = FrictionSimulation(
           widget.interactionEndFrictionCoefficient * widget.scaleFactor,
           scale,
@@ -544,13 +463,13 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
           return;
         }
 
-        final Offset focalPointScene = _transformer.toScene(local);
-        final Offset newFocalPointScene = _transformer.toScene(
+        final Offset focalPointScene = _controller.toScene(local);
+        final Offset newFocalPointScene = _controller.toScene(
           local - localDelta,
         );
 
-        _transformer.value = _matrixTranslate(
-          _transformer.value,
+        _controller.value = _controller.matrixTranslate(
+          _controller.value,
           newFocalPointScene - focalPointScene,
         );
 
@@ -590,12 +509,12 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
       return;
     }
 
-    final Offset focalPointScene = _transformer.toScene(local);
-    _transformer.value = _matrixScale(_transformer.value, scaleChange);
+    final Offset focalPointScene = _controller.toScene(local);
+    _controller.value = _matrixScale(_controller.value, scaleChange);
 
-    final Offset focalPointSceneScaled = _transformer.toScene(local);
-    _transformer.value = _matrixTranslate(
-      _transformer.value,
+    final Offset focalPointSceneScaled = _controller.toScene(local);
+    _controller.value = _controller.matrixTranslate(
+      _controller.value,
       focalPointSceneScaled - focalPointScene,
     );
 
@@ -610,20 +529,19 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
   }
 
   void _handleInertiaAnimation() {
-    if (!_controller.isAnimating) {
+    if (!_animationController.isAnimating) {
       _currentAxis = null;
       _animation?.removeListener(_handleInertiaAnimation);
       _animation = null;
-      _controller.reset();
+      _animationController.reset();
       return;
     }
 
-    final Vector3 translationVector = _transformer.value.getTranslation();
+    final Vector3 translationVector = _controller.value.getTranslation();
     final Offset translation = Offset(translationVector.x, translationVector.y);
-    _transformer.value = _matrixTranslate(
-      _transformer.value,
-      _transformer.toScene(_animation!.value) -
-          _transformer.toScene(translation),
+    _controller.value = _controller.matrixTranslate(
+      _controller.value,
+      _controller.toScene(_animation!.value) - _controller.toScene(translation),
     );
   }
 
@@ -637,17 +555,17 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     }
     final double desiredScale = _scaleAnimation!.value;
     final double scaleChange =
-        desiredScale / _transformer.value.getMaxScaleOnAxis();
-    final Offset referenceFocalPoint = _transformer.toScene(
+        desiredScale / _controller.value.getMaxScaleOnAxis();
+    final Offset referenceFocalPoint = _controller.toScene(
       _scaleAnimationFocalPoint,
     );
-    _transformer.value = _matrixScale(_transformer.value, scaleChange);
+    _controller.value = _matrixScale(_controller.value, scaleChange);
 
-    final Offset focalPointSceneScaled = _transformer.toScene(
+    final Offset focalPointSceneScaled = _controller.toScene(
       _scaleAnimationFocalPoint,
     );
-    _transformer.value = _matrixTranslate(
-      _transformer.value,
+    _controller.value = _controller.matrixTranslate(
+      _controller.value,
       focalPointSceneScaled - referenceFocalPoint,
     );
   }
@@ -659,36 +577,56 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this);
+    _animationController = AnimationController(vsync: this);
     _scaleController = AnimationController(vsync: this);
 
-    _transformer.addListener(_handleTransformation);
+    _controller.addListener(_handleTransformation);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.setValues(
+        viewport: _viewport,
+        panAxis: widget.panAxis,
+        minScale: widget.minScale,
+        maxScale: widget.maxScale,
+        currentAxis: _currentAxis,
+        boundaryRect: _boundaryRect,
+        currentRotation: _currentRotation,
+      );
+    });
   }
 
   @override
   void didUpdateWidget(InteractiveViewerPlus oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final TransformationController? newController =
-        widget.transformationController;
-    if (newController == oldWidget.transformationController) {
+    final InteractiveViewerPlusController? newController = widget.controller;
+    if (newController == oldWidget.controller) {
       return;
     }
-    _transformer.removeListener(_handleTransformation);
-    if (oldWidget.transformationController == null) {
-      _transformer.dispose();
+    _controller.removeListener(_handleTransformation);
+    if (oldWidget.controller == null) {
+      _controller.dispose();
     }
-    _transformer = newController ?? TransformationController();
-    _transformer.addListener(_handleTransformation);
+    _controller = newController ?? InteractiveViewerPlusController();
+    _controller.addListener(_handleTransformation);
+    _controller.setValues(
+      viewport: _viewport,
+      panAxis: widget.panAxis,
+      minScale: widget.minScale,
+      maxScale: widget.maxScale,
+      currentAxis: _currentAxis,
+      boundaryRect: _boundaryRect,
+      currentRotation: _currentRotation,
+    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _animationController.dispose();
     _scaleController.dispose();
-    _transformer.removeListener(_handleTransformation);
-    if (widget.transformationController == null) {
-      _transformer.dispose();
+    _controller.removeListener(_handleTransformation);
+    if (widget.controller == null) {
+      _controller.dispose();
     }
     super.dispose();
   }
@@ -701,7 +639,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
         childKey: _childKey,
         clipBehavior: widget.clipBehavior,
         constrained: widget.constrained,
-        matrix: _transformer.value,
+        matrix: _controller.value,
         alignment: widget.alignment,
         child: widget.child!,
       );
@@ -710,7 +648,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
       assert(!widget.constrained);
       child = LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final Matrix4 matrix = _transformer.value;
+          final Matrix4 matrix = _controller.value;
           return _InteractiveViewerBuilt(
             childKey: _childKey,
             clipBehavior: widget.clipBehavior,
