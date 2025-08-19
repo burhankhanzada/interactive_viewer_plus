@@ -19,6 +19,8 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(body: InteractiveViewerPlus());
+    return Scaffold(
+      body: InteractiveViewerPlus(child: FlutterLogo(size: 1000)),
+    );
   }
 }
