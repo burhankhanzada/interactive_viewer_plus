@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show clampDouble;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/widgets.dart';
@@ -189,31 +188,6 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     return Offset.zero & parentRenderBox.size;
   }
 
-  Matrix4 _matrixScale(Matrix4 matrix, double scale) {
-    if (scale == 1.0) {
-      return matrix.clone();
-    }
-    assert(scale != 0.0);
-
-    final double currentScale = _controller.value.getMaxScaleOnAxis();
-    final double totalScale = math.max(
-      currentScale * scale,
-
-      math.max(
-        _viewport.width / _boundaryRect.width,
-        _viewport.height / _boundaryRect.height,
-      ),
-    );
-    final double clampedTotalScale = clampDouble(
-      totalScale,
-      widget.minScale,
-      widget.maxScale,
-    );
-    final double clampedScale = clampedTotalScale / currentScale;
-    return matrix.clone()
-      ..scaleByDouble(clampedScale, clampedScale, clampedScale, 1);
-  }
-
   Matrix4 _matrixRotate(Matrix4 matrix, double rotation, Offset focalPoint) {
     if (rotation == 0) {
       return matrix.clone();
@@ -289,7 +263,10 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
         final double desiredScale = _scaleStart! * details.scale;
         final double scaleChange = desiredScale / scale;
-        _controller.value = _matrixScale(_controller.value, scaleChange);
+        _controller.value = _controller.matrixScale(
+          _controller.value,
+          scaleChange,
+        );
 
         final Offset focalPointSceneScaled = _controller.toScene(
           details.localFocalPoint,
@@ -510,7 +487,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     }
 
     final Offset focalPointScene = _controller.toScene(local);
-    _controller.value = _matrixScale(_controller.value, scaleChange);
+    _controller.value = _controller.matrixScale(_controller.value, scaleChange);
 
     final Offset focalPointSceneScaled = _controller.toScene(local);
     _controller.value = _controller.matrixTranslate(
@@ -559,7 +536,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     final Offset referenceFocalPoint = _controller.toScene(
       _scaleAnimationFocalPoint,
     );
-    _controller.value = _matrixScale(_controller.value, scaleChange);
+    _controller.value = _controller.matrixScale(_controller.value, scaleChange);
 
     final Offset focalPointSceneScaled = _controller.toScene(
       _scaleAnimationFocalPoint,

@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui';
+
 import 'package:flutter/widgets.dart';
 import 'package:vector_math/vector_math_64.dart';
 
@@ -39,12 +42,41 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     value = matrixTranslate(value, offset);
   }
 
+  void zoom(double scale) {
+    value = matrixScale(value, scale);
+  }
+
   Offset toScene(Offset viewportPoint) {
     final Matrix4 inverseMatrix = Matrix4.inverted(value);
     final Vector3 untransformed = inverseMatrix.transform3(
       Vector3(viewportPoint.dx, viewportPoint.dy, 0),
     );
     return Offset(untransformed.x, untransformed.y);
+  }
+
+  Matrix4 matrixScale(Matrix4 matrix, double scale) {
+    if (scale == 1.0) {
+      return matrix.clone();
+    }
+    assert(scale != 0.0);
+
+    final double currentScale = value.getMaxScaleOnAxis();
+    final double totalScale = math.max(
+      currentScale * scale,
+
+      math.max(
+        viewport.width / boundaryRect.width,
+        viewport.height / boundaryRect.height,
+      ),
+    );
+    final double clampedTotalScale = clampDouble(
+      totalScale,
+      minScale,
+      maxScale,
+    );
+    final double clampedScale = clampedTotalScale / currentScale;
+    return matrix.clone()
+      ..scaleByDouble(clampedScale, clampedScale, clampedScale, 1);
   }
 
   Matrix4 matrixTranslate(Matrix4 matrix, Offset translation) {

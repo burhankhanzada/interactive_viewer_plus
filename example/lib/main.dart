@@ -30,6 +30,8 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: CallbackShortcuts(
         bindings: {
+          const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
+          const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
           const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
           const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
           const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
@@ -37,14 +39,31 @@ class _HomePageState extends State<HomePage> {
         },
         child: Focus(
           autofocus: true,
-          child: InteractiveViewerPlus(
-            controller: controller,
-            child: FlutterLogo(size: 1000),
+          child: Stack(
+            children: [
+              InteractiveViewerPlus(
+                controller: controller,
+                child: FlutterLogo(size: 1000),
+              ),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(onPressed: zoomIn, icon: Icon(Icons.zoom_in)),
+                    IconButton(onPressed: zoomOut, icon: Icon(Icons.zoom_out)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  void zoomIn() => controller.zoom(1.1);
+  void zoomOut() => controller.zoom(0.9);
 
   void panUp() => controller.pan(const Offset(0, 10));
   void panDown() => controller.pan(const Offset(0, -10));
