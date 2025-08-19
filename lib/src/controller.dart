@@ -45,6 +45,15 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     value = matrixScale(value, scale);
   }
 
+  void flip({bool flipX = false, bool flipY = false}) {
+    value = matrixFlip(
+      value,
+      flipX: flipX,
+      flipY: flipY,
+      focalPoint: viewport.center,
+    );
+  }
+
   void rotate(double rotation) {
     final Offset focalPointScene = toScene(viewport.center);
     value = matrixRotate(value, rotation, focalPointScene);
@@ -93,6 +102,95 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     final double clampedScale = clampedTotalScale / currentScale;
     return matrix.clone()
       ..scaleByDouble(clampedScale, clampedScale, clampedScale, 1);
+  }
+
+  Matrix4 matrixFlip(
+    Matrix4 matrix, {
+    required bool flipX,
+    required bool flipY,
+    required Offset focalPoint,
+  }) {
+    if (!flipX && !flipY) {
+      return matrix.clone();
+    }
+
+    final double sx = flipX ? -1.0 : 1.0;
+    final double sy = flipY ? -1.0 : 1.0;
+
+    // Convert viewport-space focal point to scene-space
+    final Offset focalPointScene = toScene(focalPoint);
+
+    // Apply flip around the focal point
+    final Matrix4 nextMatrix = matrix.clone()
+      ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
+      ..scaleByDouble(sx, sy, 1.0, 1)
+      ..translateByDouble(-focalPointScene.dx, -focalPointScene.dy, 0, 1);
+
+    // No boundary? We're done.
+    if (boundaryRect.isInfinite) {
+      return nextMatrix;
+    }
+
+    // Boundary handling: same pattern as matrixTranslate
+    final Quad nextViewport = transformViewport(nextMatrix, viewport);
+    final Quad boundariesAabbQuad = getAxisAlignedBoundingBoxWithRotation(
+      boundaryRect,
+      currentRotation,
+    );
+
+    final Offset offendingDistance = exceedsBy(
+      boundariesAabbQuad,
+      nextViewport,
+    );
+    if (offendingDistance == Offset.zero) {
+      return nextMatrix;
+    }
+
+    final Offset nextTotalTranslation = getMatrixTranslation(nextMatrix);
+    final double currentScale = nextMatrix.getMaxScaleOnAxis();
+    final Offset correctedTotalTranslation = Offset(
+      nextTotalTranslation.dx - offendingDistance.dx * currentScale,
+      nextTotalTranslation.dy - offendingDistance.dy * currentScale,
+    );
+
+    final Matrix4 correctedMatrix = nextMatrix.clone()
+      ..setTranslation(
+        Vector3(
+          correctedTotalTranslation.dx,
+          correctedTotalTranslation.dy,
+          0.0,
+        ),
+      );
+
+    final Quad correctedViewport = transformViewport(correctedMatrix, viewport);
+    final Offset offendingCorrectedDistance = exceedsBy(
+      boundariesAabbQuad,
+      correctedViewport,
+    );
+
+    if (offendingCorrectedDistance == Offset.zero) {
+      return correctedMatrix;
+    }
+
+    // If both axes still offend, abort flip and keep the original matrix
+    if (offendingCorrectedDistance.dx != 0.0 &&
+        offendingCorrectedDistance.dy != 0.0) {
+      return matrix.clone();
+    }
+
+    // Allow only the axis that doesn't offend
+    final Offset unidirectionalCorrectedTotalTranslation = Offset(
+      offendingCorrectedDistance.dx == 0.0 ? correctedTotalTranslation.dx : 0.0,
+      offendingCorrectedDistance.dy == 0.0 ? correctedTotalTranslation.dy : 0.0,
+    );
+
+    return nextMatrix.clone()..setTranslation(
+      Vector3(
+        unidirectionalCorrectedTotalTranslation.dx,
+        unidirectionalCorrectedTotalTranslation.dy,
+        0.0,
+      ),
+    );
   }
 
   Matrix4 matrixTranslate(Matrix4 matrix, Offset translation) {

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:interactive_viewer_plus/interactive_viewer_plus.dart';
@@ -61,6 +63,25 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: flipHorizontal,
+                        icon: Icon(Icons.flip),
+                      ),
+                      IconButton(
+                        onPressed: flipVertical,
+                        icon: Transform.rotate(
+                          angle: math.pi * 1 / 2,
+                          child: Icon(Icons.flip),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -74,6 +95,9 @@ class _HomePageState extends State<HomePage> {
 
   void rotateLeft() => controller.rotate(0.1);
   void rotateRight() => controller.rotate(-0.1);
+
+  void flipVertical() => controller.flip(flipY: true);
+  void flipHorizontal() => controller.flip(flipX: true);
 
   void panUp() => controller.pan(const Offset(0, 10));
   void panDown() => controller.pan(const Offset(0, -10));
