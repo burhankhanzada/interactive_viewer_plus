@@ -265,28 +265,12 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
         assert(_scaleStart != null);
 
         final desiredScale = _scaleStart! * details.scale;
+
         final scaleChange = desiredScale / scale;
-        _controller.value = _controller.matrixScale(
-          _controller.value,
-          scaleChange,
-        );
 
-        final focalPointSceneScaled = _controller.toScene(
-          details.localFocalPoint,
-        );
+        _controller.zoomAt(details.localFocalPoint, scaleChange);
 
-        _controller.value = _controller.matrixTranslate(
-          _controller.value,
-          focalPointSceneScaled - _referenceFocalPoint!,
-        );
-
-        final focalPointSceneCheck = _controller.toScene(
-          details.localFocalPoint,
-        );
-
-        if (round(_referenceFocalPoint!) != round(focalPointSceneCheck)) {
-          _referenceFocalPoint = focalPointSceneCheck;
-        }
+        _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
 
       case GestureType.rotate:
         if (details.rotation == 0.0) {
@@ -314,6 +298,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
         _currentAxis ??= getPanAxis(_referenceFocalPoint!, focalPointScene);
 
         final translationChange = focalPointScene - _referenceFocalPoint!;
+
         _controller.value = _controller.matrixTranslate(
           _controller.value,
           translationChange,
@@ -447,13 +432,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
           return;
         }
 
-        final focalPointScene = _controller.toScene(local);
-        final newFocalPointScene = _controller.toScene(local - localDelta);
-
-        _controller.value = _controller.matrixTranslate(
-          _controller.value,
-          newFocalPointScene - focalPointScene,
-        );
+        _controller.panFromLocalTo(local, local - localDelta);
 
         widget.onInteractionUpdate?.call(
           ScaleUpdateDetails(
@@ -491,14 +470,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
       return;
     }
 
-    final focalPointScene = _controller.toScene(local);
-    _controller.value = _controller.matrixScale(_controller.value, scaleChange);
-
-    final focalPointSceneScaled = _controller.toScene(local);
-    _controller.value = _controller.matrixTranslate(
-      _controller.value,
-      focalPointSceneScaled - focalPointScene,
-    );
+    _controller.zoomAt(local, scaleChange);
 
     widget.onInteractionUpdate?.call(
       ScaleUpdateDetails(
@@ -540,21 +512,8 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     }
 
     final desiredScale = _scaleAnimation!.value;
-
     final scaleChange = desiredScale / _controller.value.getMaxScaleOnAxis();
-
-    final referenceFocalPoint = _controller.toScene(_scaleAnimationFocalPoint);
-
-    _controller.value = _controller.matrixScale(_controller.value, scaleChange);
-
-    final focalPointSceneScaled = _controller.toScene(
-      _scaleAnimationFocalPoint,
-    );
-
-    _controller.value = _controller.matrixTranslate(
-      _controller.value,
-      focalPointSceneScaled - referenceFocalPoint,
-    );
+    _controller.zoomAt(_scaleAnimationFocalPoint, scaleChange);
   }
 
   void _handleTransformation() {
@@ -565,6 +524,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
   void initState() {
     super.initState();
     _animationController = AnimationController(vsync: this);
+
     _scaleAnimationController = AnimationController(vsync: this);
 
     _controller.addListener(_handleTransformation);

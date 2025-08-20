@@ -49,6 +49,19 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     value = matrixScale(value, scale);
   }
 
+  void zoomAt(Offset viewportLocal, double scaleChange) {
+    final reference = toScene(viewportLocal);
+    value = matrixScale(value, scaleChange);
+    final after = toScene(viewportLocal);
+    value = matrixTranslate(value, after - reference);
+  }
+
+  void panFromLocalTo(Offset fromLocal, Offset toLocal) {
+    final a = toScene(fromLocal);
+    final b = toScene(toLocal);
+    value = matrixTranslate(value, b - a);
+  }
+
   void flip({bool flipX = false, bool flipY = false}) {
     value = matrixFlip(
       value,
@@ -99,7 +112,9 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
       ),
     );
     final clampedTotalScale = clampDouble(totalScale, minScale, maxScale);
+
     final clampedScale = clampedTotalScale / currentScale;
+
     return matrix.clone()
       ..scaleByDouble(clampedScale, clampedScale, clampedScale, 1);
   }
@@ -121,69 +136,12 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     final focalPointScene = toScene(focalPoint);
 
     // Apply flip around the focal point
-    final nextMatrix = matrix.clone()
+    final candidate = matrix.clone()
       ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
       ..scaleByDouble(sx, sy, 1, 1)
       ..translateByDouble(-focalPointScene.dx, -focalPointScene.dy, 0, 1);
 
-    // No boundary? We're done.
-    if (boundaryRect.isInfinite) {
-      return nextMatrix;
-    }
-
-    // Boundary handling: same pattern as matrixTranslate
-    final nextViewport = transformViewport(nextMatrix, viewport);
-    final boundariesAabbQuad = getAxisAlignedBoundingBoxWithRotation(
-      boundaryRect,
-      currentRotation,
-    );
-
-    final offendingDistance = exceedsBy(boundariesAabbQuad, nextViewport);
-    if (offendingDistance == Offset.zero) {
-      return nextMatrix;
-    }
-
-    final nextTotalTranslation = getMatrixTranslation(nextMatrix);
-    final currentScale = nextMatrix.getMaxScaleOnAxis();
-    final correctedTotalTranslation = Offset(
-      nextTotalTranslation.dx - offendingDistance.dx * currentScale,
-      nextTotalTranslation.dy - offendingDistance.dy * currentScale,
-    );
-
-    final correctedMatrix = nextMatrix.clone()
-      ..setTranslation(
-        Vector3(correctedTotalTranslation.dx, correctedTotalTranslation.dy, 0),
-      );
-
-    final correctedViewport = transformViewport(correctedMatrix, viewport);
-    final offendingCorrectedDistance = exceedsBy(
-      boundariesAabbQuad,
-      correctedViewport,
-    );
-
-    if (offendingCorrectedDistance == Offset.zero) {
-      return correctedMatrix;
-    }
-
-    // If both axes still offend, abort flip and keep the original matrix
-    if (offendingCorrectedDistance.dx != 0.0 &&
-        offendingCorrectedDistance.dy != 0.0) {
-      return matrix.clone();
-    }
-
-    // Allow only the axis that doesn't offend
-    final unidirectionalCorrectedTotalTranslation = Offset(
-      offendingCorrectedDistance.dx == 0.0 ? correctedTotalTranslation.dx : 0.0,
-      offendingCorrectedDistance.dy == 0.0 ? correctedTotalTranslation.dy : 0.0,
-    );
-
-    return nextMatrix.clone()..setTranslation(
-      Vector3(
-        unidirectionalCorrectedTotalTranslation.dx,
-        unidirectionalCorrectedTotalTranslation.dy,
-        0,
-      ),
-    );
+    return _correctForBoundary(original: matrix, candidate: candidate);
   }
 
   Matrix4 matrixTranslate(Matrix4 matrix, Offset translation) {
@@ -204,14 +162,21 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
       alignedTranslation = translation;
     }
 
-    final nextMatrix = matrix.clone()
+    final candidate = matrix.clone()
       ..translateByDouble(alignedTranslation.dx, alignedTranslation.dy, 0, 1);
 
-    final nextViewport = transformViewport(nextMatrix, viewport);
+    return _correctForBoundary(original: matrix, candidate: candidate);
+  }
 
+  Matrix4 _correctForBoundary({
+    required Matrix4 original,
+    required Matrix4 candidate,
+  }) {
     if (boundaryRect.isInfinite) {
-      return nextMatrix;
+      return candidate;
     }
+
+    final nextViewport = transformViewport(candidate, viewport);
 
     final boundariesAabbQuad = getAxisAlignedBoundingBoxWithRotation(
       boundaryRect,
@@ -219,18 +184,21 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     );
 
     final offendingDistance = exceedsBy(boundariesAabbQuad, nextViewport);
+
     if (offendingDistance == Offset.zero) {
-      return nextMatrix;
+      return candidate;
     }
 
-    final nextTotalTranslation = getMatrixTranslation(nextMatrix);
-    final currentScale = matrix.getMaxScaleOnAxis();
+    final nextTotalTranslation = getMatrixTranslation(candidate);
+
+    final currentScale = candidate.getMaxScaleOnAxis();
+
     final correctedTotalTranslation = Offset(
       nextTotalTranslation.dx - offendingDistance.dx * currentScale,
       nextTotalTranslation.dy - offendingDistance.dy * currentScale,
     );
 
-    final correctedMatrix = matrix.clone()
+    final correctedMatrix = candidate.clone()
       ..setTranslation(
         Vector3(correctedTotalTranslation.dx, correctedTotalTranslation.dy, 0),
       );
@@ -246,17 +214,25 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
       return correctedMatrix;
     }
 
+    // If both axes still offend, abort and keep the original matrix
     if (offendingCorrectedDistance.dx != 0.0 &&
         offendingCorrectedDistance.dy != 0.0) {
-      return matrix.clone();
+      return original;
     }
 
+    // Allow only the axis that doesn't offend
+    final originalTranslation = getMatrixTranslation(original);
+
     final unidirectionalCorrectedTotalTranslation = Offset(
-      offendingCorrectedDistance.dx == 0.0 ? correctedTotalTranslation.dx : 0.0,
-      offendingCorrectedDistance.dy == 0.0 ? correctedTotalTranslation.dy : 0.0,
+      offendingCorrectedDistance.dx == 0.0
+          ? correctedTotalTranslation.dx
+          : originalTranslation.dx,
+      offendingCorrectedDistance.dy == 0.0
+          ? correctedTotalTranslation.dy
+          : originalTranslation.dy,
     );
 
-    return matrix.clone()..setTranslation(
+    return candidate.clone()..setTranslation(
       Vector3(
         unidirectionalCorrectedTotalTranslation.dx,
         unidirectionalCorrectedTotalTranslation.dy,
