@@ -157,10 +157,24 @@ Offset round(Offset offset) => Offset(
   double.parse(offset.dy.toStringAsFixed(9)),
 );
 
-Offset alignAxis(Offset offset, Axis axis) => switch (axis) {
-  Axis.horizontal => Offset(offset.dx, 0),
-  Axis.vertical => Offset(0, offset.dy),
-};
+Offset alignAxis(Offset offset, Axis axis, [double rotation = 0]) {
+  if (rotation == 0) {
+    return switch (axis) {
+      Axis.horizontal => Offset(offset.dx, 0),
+      Axis.vertical => Offset(0, offset.dy),
+    };
+  }
+
+  final axisDirection = switch (axis) {
+    Axis.horizontal => Offset(math.cos(rotation), math.sin(rotation)),
+    Axis.vertical => Offset(-math.sin(rotation), math.cos(rotation)),
+  };
+
+  final dotProduct =
+      offset.dx * axisDirection.dx + offset.dy * axisDirection.dy;
+
+  return Offset(dotProduct * axisDirection.dx, dotProduct * axisDirection.dy);
+}
 
 Axis? getPanAxis(Offset point1, Offset point2) {
   if (point1 == point2) {

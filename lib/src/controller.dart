@@ -71,10 +71,9 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     );
   }
 
-  void rotate(double rotation) {
-    final focalPointScene = toScene(viewport.center);
-    value = matrixRotate(value, rotation, focalPointScene);
-    currentRotation = rotation;
+  void rotate(double deltaRotation) {
+    value = matrixRotate(value, deltaRotation, viewport.center);
+    currentRotation += deltaRotation;
   }
 
   Offset toScene(Offset viewportPoint) {
@@ -140,14 +139,15 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
 
     final sx = flipX ? -1.0 : 1.0;
     final sy = flipY ? -1.0 : 1.0;
-
     final focalPointScene = toScene(focalPoint);
     final dx = focalPointScene.dx;
     final dy = focalPointScene.dy;
 
     final candidate = matrix.clone()
       ..translateByDouble(dx, dy, 0, 1)
+      ..rotateZ(currentRotation)
       ..scaleByDouble(sx, sy, 1, 1)
+      ..rotateZ(-currentRotation)
       ..translateByDouble(-dx, -dy, 0, 1);
 
     return _correctForBoundary(original: matrix, candidate: candidate);
@@ -162,9 +162,21 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
 
     if (currentAxis != null) {
       alignedTranslation = switch (panAxis) {
-        PanAxis.horizontal => alignAxis(translation, Axis.horizontal),
-        PanAxis.vertical => alignAxis(translation, Axis.vertical),
-        PanAxis.aligned => alignAxis(translation, currentAxis!),
+        PanAxis.horizontal => alignAxis(
+          translation,
+          Axis.horizontal,
+          currentRotation,
+        ),
+        PanAxis.vertical => alignAxis(
+          translation,
+          Axis.vertical,
+          currentRotation,
+        ),
+        PanAxis.aligned => alignAxis(
+          translation,
+          currentAxis!,
+          currentRotation,
+        ),
         PanAxis.free => translation,
       };
     } else {

@@ -30,54 +30,101 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
-            const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
-            const SingleActivator(LogicalKeyboardKey.comma): rotateLeft,
-            const SingleActivator(LogicalKeyboardKey.period): rotateRight,
-            const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
-            const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
-            const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
-            const SingleActivator(LogicalKeyboardKey.arrowRight): panRight,
-          },
-          child: Focus(
-            autofocus: true,
+      body: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
+          const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
+          const SingleActivator(LogicalKeyboardKey.comma): rotateLeft,
+          const SingleActivator(LogicalKeyboardKey.period): rotateRight,
+          const SingleActivator(LogicalKeyboardKey.keyV): flipVertical,
+          const SingleActivator(LogicalKeyboardKey.keyH): flipHorizontal,
+          const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
+          const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
+          const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
+          const SingleActivator(LogicalKeyboardKey.arrowRight): panRight,
+        },
+        child: Focus(
+          autofocus: true,
+          child: SafeArea(
             child: Stack(
               children: [
-                InteractiveViewerPlus(
-                  controller: controller,
-                  child: FlutterLogo(size: 1000),
-                ),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(onPressed: zoomIn, icon: Icon(Icons.zoom_in)),
-                      IconButton(
-                        onPressed: zoomOut,
-                        icon: Icon(Icons.zoom_out),
-                      ),
-                    ],
+                Center(
+                  child: Container(
+                    color: Colors.yellow,
+                    child: InteractiveViewerPlus(
+                      controller: controller,
+                      child: FlutterLogo(size: 1000),
+                    ),
                   ),
                 ),
                 Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                  alignment: Alignment.bottomCenter,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        onPressed: flipHorizontal,
-                        icon: Icon(Icons.flip),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: flipHorizontal,
+                            icon: Icon(Icons.flip),
+                          ),
+                          IconButton(
+                            onPressed: flipVertical,
+                            icon: Transform.rotate(
+                              angle: math.pi * 1 / 2,
+                              child: Icon(Icons.flip),
+                            ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        onPressed: flipVertical,
-                        icon: Transform.rotate(
-                          angle: math.pi * 1 / 2,
-                          child: Icon(Icons.flip),
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: rotateLeft,
+                            icon: Icon(Icons.rotate_left),
+                          ),
+                          IconButton(
+                            onPressed: rotateRight,
+                            icon: Icon(Icons.rotate_right),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: panLeft,
+                            icon: Icon(Icons.arrow_back),
+                          ),
+
+                          IconButton(
+                            onPressed: panRight,
+                            icon: Icon(Icons.arrow_forward),
+                          ),
+                          IconButton(
+                            onPressed: panUp,
+                            icon: Icon(Icons.arrow_upward),
+                          ),
+                          IconButton(
+                            onPressed: panDown,
+                            icon: Icon(Icons.arrow_downward),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: zoomIn,
+                            icon: Icon(Icons.zoom_in),
+                          ),
+                          IconButton(
+                            onPressed: zoomOut,
+                            icon: Icon(Icons.zoom_out),
+                          ),
+                        ],
                       ),
                     ],
                   ),
