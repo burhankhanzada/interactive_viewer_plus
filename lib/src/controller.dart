@@ -90,10 +90,13 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
       return matrix.clone();
     }
     final focalPointScene = toScene(focalPoint);
+    final dx = focalPointScene.dx;
+    final dy = focalPointScene.dy;
+
     return matrix.clone()
-      ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
+      ..translateByDouble(dx, dy, 0, 1)
       ..rotateZ(-rotation)
-      ..translateByDouble(-focalPointScene.dx, -focalPointScene.dy, 0, 1);
+      ..translateByDouble(-dx, -dy, 0, 1);
   }
 
   Matrix4 matrixScale(Matrix4 matrix, double scale) {
@@ -103,14 +106,20 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     assert(scale != 0.0);
 
     final currentScale = value.getMaxScaleOnAxis();
-    final double totalScale = math.max(
-      currentScale * scale,
+    final viewportWidth = viewport.width;
+    final viewportHeight = viewport.height;
+    final boundaryWidth = boundaryRect.width;
+    final boundaryHeight = boundaryRect.height;
 
-      math.max(
-        viewport.width / boundaryRect.width,
-        viewport.height / boundaryRect.height,
-      ),
+    final minRequiredScale = math.max(
+      viewportWidth / boundaryWidth,
+      viewportHeight / boundaryHeight,
     );
+
+    final desiredTotalScale = currentScale * scale;
+
+    final totalScale = math.max(desiredTotalScale, minRequiredScale);
+
     final clampedTotalScale = clampDouble(totalScale, minScale, maxScale);
 
     final clampedScale = clampedTotalScale / currentScale;
@@ -132,14 +141,14 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
     final sx = flipX ? -1.0 : 1.0;
     final sy = flipY ? -1.0 : 1.0;
 
-    // Convert viewport-space focal point to scene-space
     final focalPointScene = toScene(focalPoint);
+    final dx = focalPointScene.dx;
+    final dy = focalPointScene.dy;
 
-    // Apply flip around the focal point
     final candidate = matrix.clone()
-      ..translateByDouble(focalPointScene.dx, focalPointScene.dy, 0, 1)
+      ..translateByDouble(dx, dy, 0, 1)
       ..scaleByDouble(sx, sy, 1, 1)
-      ..translateByDouble(-focalPointScene.dx, -focalPointScene.dy, 0, 1);
+      ..translateByDouble(-dx, -dy, 0, 1);
 
     return _correctForBoundary(original: matrix, candidate: candidate);
   }
@@ -191,11 +200,14 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
 
     final nextTotalTranslation = getMatrixTranslation(candidate);
 
+    final offendingDx = offendingDistance.dx;
+    final offendingDy = offendingDistance.dy;
+
     final currentScale = candidate.getMaxScaleOnAxis();
 
     final correctedTotalTranslation = Offset(
-      nextTotalTranslation.dx - offendingDistance.dx * currentScale,
-      nextTotalTranslation.dy - offendingDistance.dy * currentScale,
+      nextTotalTranslation.dx - offendingDx * currentScale,
+      nextTotalTranslation.dy - offendingDy * currentScale,
     );
 
     final correctedMatrix = candidate.clone()
@@ -214,30 +226,26 @@ class InteractiveViewerPlusController extends ValueNotifier<Matrix4> {
       return correctedMatrix;
     }
 
-    // If both axes still offend, abort and keep the original matrix
-    if (offendingCorrectedDistance.dx != 0.0 &&
-        offendingCorrectedDistance.dy != 0.0) {
+    final correctedOffendingDx = offendingCorrectedDistance.dx;
+    final correctedOffendingDy = offendingCorrectedDistance.dy;
+
+    if (correctedOffendingDx != 0.0 && correctedOffendingDy != 0.0) {
       return original;
     }
 
-    // Allow only the axis that doesn't offend
     final originalTranslation = getMatrixTranslation(original);
+    final originalDx = originalTranslation.dx;
+    final originalDy = originalTranslation.dy;
 
-    final unidirectionalCorrectedTotalTranslation = Offset(
-      offendingCorrectedDistance.dx == 0.0
-          ? correctedTotalTranslation.dx
-          : originalTranslation.dx,
-      offendingCorrectedDistance.dy == 0.0
-          ? correctedTotalTranslation.dy
-          : originalTranslation.dy,
+    final correctedDx = correctedTotalTranslation.dx;
+    final correctedDy = correctedTotalTranslation.dy;
+
+    final finalTranslation = Offset(
+      correctedOffendingDx == 0.0 ? correctedDx : originalDx,
+      correctedOffendingDy == 0.0 ? correctedDy : originalDy,
     );
 
-    return candidate.clone()..setTranslation(
-      Vector3(
-        unidirectionalCorrectedTotalTranslation.dx,
-        unidirectionalCorrectedTotalTranslation.dy,
-        0,
-      ),
-    );
+    return candidate.clone()
+      ..setTranslation(Vector3(finalTranslation.dx, finalTranslation.dy, 0));
   }
 }

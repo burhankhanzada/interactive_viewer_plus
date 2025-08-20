@@ -157,44 +157,51 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
       widget.controller ?? InteractiveViewerPlusController();
 
   Rect get _boundaryRect {
-    assert(_childKey.currentContext != null);
-    assert(!widget.boundaryMargin.left.isNaN);
-    assert(!widget.boundaryMargin.right.isNaN);
-    assert(!widget.boundaryMargin.top.isNaN);
-    assert(!widget.boundaryMargin.bottom.isNaN);
+    final context = _childKey.currentContext;
+    assert(context != null);
 
-    final childRenderBox =
-        _childKey.currentContext!.findRenderObject()! as RenderBox;
+    final margin = widget.boundaryMargin;
 
+    assert(!margin.left.isNaN);
+    assert(!margin.right.isNaN);
+    assert(!margin.top.isNaN);
+    assert(!margin.bottom.isNaN);
+
+    final childRenderBox = context!.findRenderObject()! as RenderBox;
     final childSize = childRenderBox.size;
-
-    final boundaryRect = widget.boundaryMargin.inflateRect(
-      Offset.zero & childSize,
-    );
+    final boundaryRect = margin.inflateRect(Offset.zero & childSize);
 
     assert(
       !boundaryRect.isEmpty,
       "InteractiveViewer's child must have nonzero dimensions.",
     );
 
+    final left = boundaryRect.left;
+    final top = boundaryRect.top;
+    final right = boundaryRect.right;
+    final bottom = boundaryRect.bottom;
+
     assert(
       boundaryRect.isFinite ||
-          (boundaryRect.left.isInfinite &&
-              boundaryRect.top.isInfinite &&
-              boundaryRect.right.isInfinite &&
-              boundaryRect.bottom.isInfinite),
+          (left.isInfinite &&
+              top.isInfinite &&
+              right.isInfinite &&
+              bottom.isInfinite),
       '''
       boundaryRect must either be infinite in all directions or finite in all 
       directions.
       ''',
     );
+
     return boundaryRect;
   }
 
   Rect get _viewport {
     assert(_parentKey.currentContext != null);
+
     final parentRenderBox =
         _parentKey.currentContext!.findRenderObject()! as RenderBox;
+
     return Offset.zero & parentRenderBox.size;
   }
 
@@ -206,7 +213,9 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
   GestureType _getGestureType(ScaleUpdateDetails details) {
     final scale = !widget.scaleEnabled ? 1.0 : details.scale;
+
     final rotation = !widget.rotateEnabled ? 0.0 : details.rotation;
+
     if ((scale - 1).abs() > rotation.abs()) {
       return GestureType.scale;
     } else if (rotation != 0.0) {
@@ -237,17 +246,20 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
     _gestureType = null;
     _currentAxis = null;
+
     _scaleStart = _controller.value.getMaxScaleOnAxis();
+
     _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
+
     _rotationStart = _controller.currentRotation;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
-    _scaleAnimationFocalPoint = details.localFocalPoint;
+    final localFocalPoint = details.localFocalPoint;
+    _scaleAnimationFocalPoint = localFocalPoint;
 
     final scale = _controller.value.getMaxScaleOnAxis();
-
-    final focalPointScene = _controller.toScene(details.localFocalPoint);
+    final focalPointScene = _controller.toScene(localFocalPoint);
 
     if (_gestureType == GestureType.pan) {
       _gestureType = _getGestureType(details);
@@ -263,48 +275,60 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     switch (_gestureType!) {
       case GestureType.scale:
         assert(_scaleStart != null);
+        final scaleStart = _scaleStart!;
 
-        final desiredScale = _scaleStart! * details.scale;
+        final desiredScale = scaleStart * details.scale;
 
         final scaleChange = desiredScale / scale;
 
-        _controller.zoomAt(details.localFocalPoint, scaleChange);
-
-        _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
+        _controller.zoomAt(localFocalPoint, scaleChange);
+        _referenceFocalPoint = _controller.toScene(localFocalPoint);
 
       case GestureType.rotate:
-        if (details.rotation == 0.0) {
+        final rotation = details.rotation;
+        if (rotation == 0.0) {
           widget.onInteractionUpdate?.call(details);
           return;
         }
 
-        final desiredRotation = _rotationStart! + details.rotation;
+        final rotationStart = _rotationStart!;
+
+        final desiredRotation = rotationStart + rotation;
+
+        final currentRotation = _controller.currentRotation;
+
+        final rotationDelta = currentRotation - desiredRotation;
+
+        final currentValue = _controller.value;
+
         _controller.value = _controller.matrixRotate(
-          _controller.value,
-          _controller.currentRotation - desiredRotation,
-          details.localFocalPoint,
+          currentValue,
+          rotationDelta,
+          localFocalPoint,
         );
 
         _controller.currentRotation = desiredRotation;
 
       case GestureType.pan:
         assert(_referenceFocalPoint != null);
-
         if (details.scale != 1.0) {
           widget.onInteractionUpdate?.call(details);
           return;
         }
 
-        _currentAxis ??= getPanAxis(_referenceFocalPoint!, focalPointScene);
+        final referenceFocalPoint = _referenceFocalPoint!;
+        _currentAxis ??= getPanAxis(referenceFocalPoint, focalPointScene);
 
-        final translationChange = focalPointScene - _referenceFocalPoint!;
+        final translationChange = focalPointScene - referenceFocalPoint;
+
+        final currentValue = _controller.value;
 
         _controller.value = _controller.matrixTranslate(
-          _controller.value,
+          currentValue,
           translationChange,
         );
 
-        _referenceFocalPoint = _controller.toScene(details.localFocalPoint);
+        _referenceFocalPoint = _controller.toScene(localFocalPoint);
     }
     widget.onInteractionUpdate?.call(details);
   }
@@ -334,21 +358,26 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
           return;
         }
         final translationVector = _controller.value.getTranslation();
+
         final translation = Offset(translationVector.x, translationVector.y);
+
         final frictionSimulationX = FrictionSimulation(
           widget.interactionEndFrictionCoefficient,
           translation.dx,
           details.velocity.pixelsPerSecond.dx,
         );
+
         final frictionSimulationY = FrictionSimulation(
           widget.interactionEndFrictionCoefficient,
           translation.dy,
           details.velocity.pixelsPerSecond.dy,
         );
+
         final tFinal = getFinalTime(
           details.velocity.pixelsPerSecond.distance,
           widget.interactionEndFrictionCoefficient,
         );
+
         _animation =
             Tween<Offset>(
               begin: translation,
@@ -362,6 +391,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
                 curve: Curves.decelerate,
               ),
             );
+
         _animationController.duration = Duration(
           milliseconds: (tFinal * 1000).round(),
         );
@@ -407,24 +437,30 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     final local = event.localPosition;
     final global = event.position;
     final double scaleChange;
+
     if (event is PointerScrollEvent) {
-      if (event.kind == PointerDeviceKind.trackpad &&
-          !widget.trackpadScrollCausesScale) {
+      final isTrackpad = event.kind == PointerDeviceKind.trackpad;
+      final trackpadScrollCausesScale = widget.trackpadScrollCausesScale;
+
+      if (isTrackpad && !trackpadScrollCausesScale) {
         widget.onInteractionStart?.call(
           ScaleStartDetails(focalPoint: global, localFocalPoint: local),
         );
 
+        final scrollDelta = event.scrollDelta;
         final localDelta = PointerEvent.transformDeltaViaPositions(
-          untransformedEndPosition: global + event.scrollDelta,
-          untransformedDelta: event.scrollDelta,
+          untransformedEndPosition: global + scrollDelta,
+          untransformedDelta: scrollDelta,
           transform: event.transform,
         );
 
         if (!_gestureIsSupported(GestureType.pan)) {
+          final adjustedGlobal = global - scrollDelta;
+          final adjustedLocal = local - scrollDelta;
           widget.onInteractionUpdate?.call(
             ScaleUpdateDetails(
-              focalPoint: global - event.scrollDelta,
-              localFocalPoint: local - event.scrollDelta,
+              focalPoint: adjustedGlobal,
+              localFocalPoint: adjustedLocal,
               focalPointDelta: -localDelta,
             ),
           );
@@ -434,10 +470,12 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
 
         _controller.panFromLocalTo(local, local - localDelta);
 
+        final adjustedGlobal = global - scrollDelta;
+        final adjustedLocal = local - scrollDelta;
         widget.onInteractionUpdate?.call(
           ScaleUpdateDetails(
-            focalPoint: global - event.scrollDelta,
-            localFocalPoint: local - localDelta,
+            focalPoint: adjustedGlobal,
+            localFocalPoint: adjustedLocal,
             focalPointDelta: -localDelta,
           ),
         );
@@ -445,15 +483,21 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
         return;
       }
 
-      if (event.scrollDelta.dy == 0.0) {
+      final scrollDeltaY = event.scrollDelta.dy;
+
+      if (scrollDeltaY == 0.0) {
         return;
       }
-      scaleChange = math.exp(-event.scrollDelta.dy / widget.scaleFactor);
+
+      final scaleFactor = widget.scaleFactor;
+
+      scaleChange = math.exp(-scrollDeltaY / scaleFactor);
     } else if (event is PointerScaleEvent) {
       scaleChange = event.scale;
     } else {
       return;
     }
+
     widget.onInteractionStart?.call(
       ScaleStartDetails(focalPoint: global, localFocalPoint: local),
     );
@@ -512,7 +556,9 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     }
 
     final desiredScale = _scaleAnimation!.value;
+
     final scaleChange = desiredScale / _controller.value.getMaxScaleOnAxis();
+
     _controller.zoomAt(_scaleAnimationFocalPoint, scaleChange);
   }
 
