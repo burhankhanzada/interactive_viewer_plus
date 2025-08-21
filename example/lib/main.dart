@@ -31,18 +31,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
-          const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
-          const SingleActivator(LogicalKeyboardKey.comma): rotateLeft,
-          const SingleActivator(LogicalKeyboardKey.period): rotateRight,
-          const SingleActivator(LogicalKeyboardKey.keyV): flipVertical,
-          const SingleActivator(LogicalKeyboardKey.keyH): flipHorizontal,
-          const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
-          const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
-          const SingleActivator(LogicalKeyboardKey.arrowRight): panRight,
-        },
+        bindings: bindings(),
         child: Focus(
           autofocus: true,
           child: SafeArea(
@@ -57,82 +46,75 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: flipHorizontal,
-                            icon: Icon(Icons.flip),
-                          ),
-                          IconButton(
-                            onPressed: flipVertical,
-                            icon: Transform.rotate(
-                              angle: math.pi * 1 / 2,
-                              child: Icon(Icons.flip),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: rotateLeft,
-                            icon: Icon(Icons.rotate_left),
-                          ),
-                          IconButton(
-                            onPressed: rotateRight,
-                            icon: Icon(Icons.rotate_right),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: panLeft,
-                            icon: Icon(Icons.arrow_back),
-                          ),
-
-                          IconButton(
-                            onPressed: panRight,
-                            icon: Icon(Icons.arrow_forward),
-                          ),
-                          IconButton(
-                            onPressed: panUp,
-                            icon: Icon(Icons.arrow_upward),
-                          ),
-                          IconButton(
-                            onPressed: panDown,
-                            icon: Icon(Icons.arrow_downward),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: zoomIn,
-                            icon: Icon(Icons.zoom_in),
-                          ),
-                          IconButton(
-                            onPressed: zoomOut,
-                            icon: Icon(Icons.zoom_out),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                buttons(),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Map<ShortcutActivator, VoidCallback> bindings() => {
+    const SingleActivator(LogicalKeyboardKey.equal): zoomIn,
+    const SingleActivator(LogicalKeyboardKey.minus): zoomOut,
+    const SingleActivator(LogicalKeyboardKey.comma): rotateLeft,
+    const SingleActivator(LogicalKeyboardKey.period): rotateRight,
+    const SingleActivator(LogicalKeyboardKey.keyV): flipVertical,
+    const SingleActivator(LogicalKeyboardKey.keyH): flipHorizontal,
+    const SingleActivator(LogicalKeyboardKey.arrowUp): panUp,
+    const SingleActivator(LogicalKeyboardKey.arrowDown): panDown,
+    const SingleActivator(LogicalKeyboardKey.arrowLeft): panLeft,
+    const SingleActivator(LogicalKeyboardKey.arrowRight): panRight,
+  };
+
+  Widget buttons() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(onPressed: flipHorizontal, icon: Icon(Icons.flip)),
+              IconButton(
+                onPressed: flipVertical,
+                icon: Transform.rotate(
+                  angle: math.pi * 1 / 2,
+                  child: Icon(Icons.flip),
+                ),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(onPressed: rotateLeft, icon: Icon(Icons.rotate_left)),
+              IconButton(
+                onPressed: rotateRight,
+                icon: Icon(Icons.rotate_right),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(onPressed: panLeft, icon: Icon(Icons.arrow_back)),
+
+              IconButton(onPressed: panRight, icon: Icon(Icons.arrow_forward)),
+              IconButton(onPressed: panUp, icon: Icon(Icons.arrow_upward)),
+              IconButton(onPressed: panDown, icon: Icon(Icons.arrow_downward)),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(onPressed: zoomIn, icon: Icon(Icons.zoom_in)),
+              IconButton(onPressed: zoomOut, icon: Icon(Icons.zoom_out)),
+            ],
+          ),
+        ],
       ),
     );
   }
