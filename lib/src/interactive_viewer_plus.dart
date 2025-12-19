@@ -587,8 +587,7 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
   /// parent widget's size.
   ///
   /// Used for coordinate transformations, boundary calculations, and
-  /// determining
-  /// what portion of the scene is currently visible to the user.
+  /// determining what portion of the scene is currently visible to the user.
   ///
   /// Returns a [Rect] with the viewport's dimensions.
   Rect get _viewport {
@@ -688,7 +687,10 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
             matrix: matrix,
             child: widget.builder!(
               context,
-              transformViewport(matrix, Offset.zero & constraints.biggest),
+              _controller.transformViewport(
+                matrix,
+                Offset.zero & constraints.biggest,
+              ),
             ),
           );
         },
@@ -920,6 +922,32 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
     widget.onInteractionUpdate?.call(details);
   }
 
+  /// Determines the primary axis of movement between two points.
+  ///
+  /// This function analyzes the movement from [point1] to [point2] and determines
+  /// whether the movement is primarily horizontal or vertical based on which
+  /// component (X or Y) has the larger absolute change.
+  ///
+  /// This is useful for implementing axis-aligned panning behavior where the
+  /// first movement determines the allowed axis for the rest of the gesture.
+  ///
+  /// Parameters:
+  /// - [point1]: Starting point of the movement
+  /// - [point2]: Ending point of the movement
+  ///
+  /// Returns [Axis.horizontal] if X movement is larger, [Axis.vertical] if Y
+  /// movement is larger, or `null` if the points are identical.
+  Axis? getPanAxis(Offset point1, Offset point2) {
+    if (point1 == point2) {
+      return null;
+    }
+    // Horizontal displacement between the two points
+    final x = point2.dx - point1.dx;
+    // Vertical displacement between the two points
+    final y = point2.dy - point1.dy;
+    return x.abs() > y.abs() ? Axis.horizontal : Axis.vertical;
+  }
+
   /// Handles the end of a scale gesture and initiates momentum animations.
   ///
   /// Called when the user releases their gesture. This method:
@@ -1057,6 +1085,28 @@ class _InteractiveViewerPlusState extends State<InteractiveViewerPlus>
         break;
     }
   }
+
+  /// Calculates the time when a decelerating motion becomes effectively
+  /// motionless.
+  ///
+  /// This function is used for momentum-based animations to determine when
+  /// to stop the animation. It uses a logarithmic decay model where velocity
+  /// decreases exponentially over time due to friction.
+  ///
+  /// The formula used is: t = ln(threshold/velocity) / ln(drag/100)
+  ///
+  /// Parameters:
+  /// - [velocity]: Initial velocity magnitude (pixels per second)
+  /// - [drag]: Friction coefficient (higher values = more friction)
+  /// - [effectivelyMotionless]: Velocity threshold below which motion stops
+  ///
+  /// Returns the time in seconds when velocity drops to the threshold.
+  /// Used by animation controllers for smooth momentum effects.
+  double getFinalTime(
+    double velocity,
+    double drag, {
+    double effectivelyMotionless = 10,
+  }) => math.log(effectivelyMotionless / velocity) / math.log(drag / 100);
 
   /// Handles pointer signals from mouse scroll wheels and trackpad events.
   ///
