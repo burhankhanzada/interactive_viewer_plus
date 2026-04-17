@@ -3,7 +3,7 @@
 A powerful extension of Flutter's `InteractiveViewer` with advanced programmatic controls. It adds support for rotation, flipping, and precise panning, all manageable via an enhanced controller.
 
 <p align="center">
-  <img src="./preview.gif" alt="Preview" width="100%" />
+  <img src="https://raw.githubusercontent.com/burhankhanzada/interactive_viewer_plus/main/preview.gif" alt="Preview" />
 </p>
 
 ## Features

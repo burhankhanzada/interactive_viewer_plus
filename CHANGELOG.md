@@ -1,6 +1,10 @@
+## 0.0.3
+
+* Fix prewview for pub.dev
+
 ## 0.0.2
 
-* Updated documentation and added comprehensive README with usage examples.
+* Initial release with updated documentation.
 
 ## 0.0.1
 
