@@ -1,6 +1,6 @@
 name: interactive_viewer_plus
 description: "Improvements on default Flutter InteractiveViewer widget"
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/burhankhanzada/interactive_viewer_plus
 
 environment:
